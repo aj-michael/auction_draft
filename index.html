@@ -148,6 +148,7 @@ function refresh() {
 (function() {
   $("#auction_form").submit(function(e) { e.preventDefault(); });
   setInterval(refresh, 1000);
+  refresh();
 })();
 </script>
   </head>
@@ -195,5 +196,12 @@ function refresh() {
       <article class="card">
       </article>
     </div>
+    <footer class="footer">
+      <div class="container">
+        <p class="text-muted text-center">
+          <a href="https://github.com/aj-michael/auction_draft" class="text-reset">https://github.com/aj-michael/auction_draft</a>
+        </p>
+      </div>
+    </footer>
   </body>
 </html>
