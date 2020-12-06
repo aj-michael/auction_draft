@@ -4,6 +4,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
 import json
 import traceback
+import sys
+from urllib.parse import unquote
 
 """
 API:
@@ -25,8 +27,10 @@ TEAM_DATA = None
 def initialize(args):
   global BUDGET
   global TEAM_DATA
+  global CURRENT_AUCTION
   BUDGET = int(args[0])
   TEAM_DATA = {}
+  CURRENT_AUCTION = None
   print("Initialized new draft with budget {}".format(BUDGET))
   return {}
 
@@ -60,6 +64,10 @@ def start_auction(args):
   player_position = args[1]
   if CURRENT_AUCTION is not None:
     raise Exception("There is an active auction: {}".format(CURRENT_AUCTION))
+  for team_name in TEAM_DATA.keys():
+    for name, position, price in TEAM_DATA[team_name][1]:
+      if name == player_name:
+        raise Exception("Player has already been auctioned")
   CURRENT_AUCTION = (player_name, player_position)
   return {}
 
@@ -105,8 +113,10 @@ def get_state(args):
   if BUDGET is not None:
     result['total_budget'] = BUDGET
   if CURRENT_AUCTION is not None:
+    result['current_auction'] = {}
     result['current_auction']['name'] = CURRENT_AUCTION[0]
     result['current_auction']['position'] = CURRENT_AUCTION[1]
+  result['team_data'] = []
   if TEAM_DATA is not None:
     team_datas = []
     for team_name in TEAM_DATA.keys():
@@ -130,8 +140,9 @@ def get_state(args):
 
 class Server(BaseHTTPRequestHandler):
   def do_GET(self):
-    print("Received request: {}".format(self.path))
-    parts = self.path.split('/')[1:]
+    parts = unquote(self.path).split('/')[3:]
+    if parts[0] != 'get_state':
+      print("Received request: {}".format(self.path))
     dispatcher = {
       "initialize": lambda args: initialize(args),
       "add_team": lambda args: add_team(args),
@@ -153,11 +164,13 @@ class Server(BaseHTTPRequestHandler):
       self.send_response(500)
       self.end_headers()
       self.wfile.write(trace.encode())
+    sys.stdout.flush()
+    sys.stderr.flush()
 
 
 if __name__ == "__main__":
   host = "localhost"
-  port = 8080
+  port = 8087
   server = HTTPServer((host, port), Server)
   print("Started http://{}:{}".format(host, port))
   try:

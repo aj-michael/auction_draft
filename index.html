@@ -1,0 +1,199 @@
+<style>
+  .cards {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+  .card {
+    flex: 1 0 500px;
+    margin: 10px;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 6px 0px  rgba(0,0,0,0.3);
+  } 
+  .card img {
+    max-width: 100%;
+  }
+  .text_card {
+    padding: 20px 20px 20px;
+  }
+  .card_button {
+    background: gray;
+    border: 0;
+    color: white;
+    padding: 10px;
+    width: 100%;
+    }
+</style>
+<html>
+  <head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script>
+async function send_request(...args) {
+  let url = "https://ajmichael.net/draft/api";
+  args.forEach(arg => url = url + "/" + arg);
+  let obj = null;
+  try {
+    const data = await fetch(url);
+    obj = await data.json();
+  } catch (e) {
+    console.log("Error: " + e);
+  }
+  return obj;
+}
+
+function initialize_prompt() {
+  const budget = prompt("Per-team budget");
+  console.log("Setting budget: " + budget);
+  send_request("initialize", budget);
+}
+
+function add_team_prompt() {
+  const team_name = prompt("Team name");
+  console.log("Adding team: " + team_name);
+  send_request("add_team", team_name);
+}
+
+function start_auction() {
+  const player_name = document.getElementById("player_name").value;
+  const position = document.getElementById("position").value.replace("/", "-");
+  console.log("Starting auction for " + player_name + " (" + position + ")");
+  send_request("start_auction", player_name, position);
+}
+
+function finish_auction(team_name) {
+  const price = prompt("Price");
+  console.log(team_name + " won auction for " + price);
+  send_request("finish_auction", team_name, price);
+}
+
+function remove_player(player_name) {
+  console.log("Removing player " + player_name);
+  send_request("remove_player", player_name);
+}
+
+function refresh() {
+  send_request("get_state").then(response => {
+		const total_budget = response["total_budget"];
+    let teams_html = "";
+    let in_auction = "current_auction" in response;
+		response["team_data"].forEach(data => {
+			const team_name = data["name"];
+			const budget = data["budget"];
+      let team_html = `
+        <article class="card">
+          <div class="text_card">
+            <h2>${team_name}</h2>
+            <p>Budget: ${budget}</p>`;
+			let index = 1;
+      let players_table_html = `
+            <table class="table">
+              <thead>
+                <tr class="d-flex">
+                  <th class="col-1">#</th>
+                  <th class="col-5">Player</th>
+                  <th class="col-2">Position</th>
+                  <th class="col-2">Price</th>
+                  <th class="col-2"></th>
+                </tr>
+              </thead>
+              <tbody>`;
+			data["players"].forEach(player_data => {
+				const player_name = player_data["name"];
+				const position = player_data["position"].replace("-", "/");
+				const price = player_data["dollar_amount"];
+        const player_html = `
+                <tr class="d-flex">
+                  <td class="col-1">${index}</td>
+                  <td class="col-5">${player_name}</td>
+                  <td class="col-2">${position}</td>
+                  <td class="col-2">${price}</td>
+                  <td class="col-2">
+                    <button class="btn" onclick="remove_player('${player_name}')"><small class="text-danger">Remove</small></button>
+                  </td>
+                </tr>`;
+        players_table_html += player_html;
+				index = index + 1;
+			});
+      players_table_html += `
+              </tbody>
+            </table>`;
+      team_html += players_table_html;
+      if (in_auction) {
+        team_html +=`<button class="card_button btn-success" onclick="finish_auction('${team_name}')">Won auction</button>`
+      }
+      team_html += `
+          </div>
+        </article>`;
+      teams_html += team_html;
+		});
+    if (in_auction) {
+    console.log(response["current_auction"]);
+      // TODO: Hide a div
+      $("#auction_player_name").text(response["current_auction"]["name"]);
+      $("#auction_player_position").text(response["current_auction"]["position"]);
+      console.log("Trying to hide start_auction_container");
+      $("#start_auction_container").hide();
+      $("#auction_holder").show();
+    } else {
+      // TODO: Hide a div
+      console.log("Trying to hide auction_holder");
+      $("#start_auction_container").show();
+      $("#auction_holder").hide();
+    }
+		$("#teams_container").html(teams_html);
+  });
+}
+
+(function() {
+  $("#auction_form").submit(function(e) { e.preventDefault(); });
+  setInterval(refresh, 1000);
+})();
+</script>
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-header">
+        <h1>Division III Men's Collegiate Lacrosse 2020 Draft</h1>
+        <div class="row">
+          <div class="container col-4" style="max-width: 250px">
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item">
+                <button class="btn btn-primary btn-block" onclick="initialize_prompt()">Initialize new draft</button>
+              </li>
+              <li class="list-group-item">
+                <button class="btn btn-primary btn-block" onclick="add_team_prompt()">Add Team</button>
+              </li>
+            </ul>
+          </div>
+          <div id="start_auction_container" class="container col-4" style="display:none">
+            <form id="auction_form" onsubmit="start_auction();return false">
+              <div class="form-group">
+                <input type="text" class="form-control" id="player_name" placeholder="Player name">
+              </div>
+              <div class="form-group">
+                <select id="position" class="form-control">
+                  <option>G</option>
+                  <option>G/F</option>
+                  <option>F/C</option>
+                </select>
+              </div>
+              <button type="button" onclick="start_auction()" class="btn btn-primary">Start Auction</button>
+            </form>
+          </div>
+          <div id="auction_holder" class="container col-4" style="display:none">
+            <div class="container">
+              <small class="text-muted">Now auctioning</small>
+              <h3 id="auction_player_name"></h3>
+              <h4 id="auction_player_position"></h4>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="teams_container" class="cards">
+      <article class="card">
+      </article>
+    </div>
+  </body>
+</html>
